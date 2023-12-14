@@ -70,6 +70,7 @@ contract PackedStorage {
     // value AND ff = value
     // value OR 00 = value
     // value OR ff = ff
+    // 00 OR 00 = 00
     // masks can be hardcoded because storage slots nd offsets are fixed
 
     // Even if _c is declared as uint16, it's 32 bytes long under the hood
