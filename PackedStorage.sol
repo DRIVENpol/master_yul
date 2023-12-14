@@ -67,8 +67,9 @@ contract PackedStorage {
 
     // Theory:
     // value AND 00 = 00
-    // value OR 00 = value
     // value AND ff = value
+    // value OR 00 = value
+    // value OR ff = ff
     // masks can be hardcoded because storage slots nd offsets are fixed
 
     // Even if _c is declared as uint16, it's 32 bytes long under the hood
@@ -81,8 +82,8 @@ contract PackedStorage {
             // 2. Delete the c by masking
             // Where we have f's, we preserve the value
             // Where we have 0's, we delete the value
-            // value = 0x0007000600000000000000000000000500000000000000000000000000000004
-            // mask  = 0xffff0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+            // value =                 0x0007000600000000000000000000000500000000000000000000000000000004
+            // mask  =                 0xffff0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
             let clearedC := and(value, 0xffff0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
             // =>      0x0007000000000000000000000000000500000000000000000000000000000004
 
