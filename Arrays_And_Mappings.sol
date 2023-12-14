@@ -53,11 +53,22 @@ contract MappingsAndArrays_DynamicSizeArrays {
 }
 
 contract MappingsAndArrays_Mappings {
+    address public caller;
+
     mapping(uint256 => uint256) public mappingUint256;
+    mapping(address => uint256) public mappingAddressUint256;
+    mapping(uint256 => mapping(uint256 => uint256)) public nestedMapping;
+    mapping(address => mapping(uint256 => uint256)) public nestedMappingAddress;
 
     constructor() {
         mappingUint256[18] = 246;
+        mappingAddressUint256[msg.sender] = 123;
+
+        nestedMapping[2][4] = 7;
+
+        nestedMappingAddress[msg.sender][2] = 8;
  
+        caller = msg.sender;
     }
 
     function readMappingValueAtIndex(uint256 index) public view returns(uint256 res) {
@@ -73,6 +84,59 @@ contract MappingsAndArrays_Mappings {
 
         assembly {
             res := sload(location)
+        }
+    }
+
+    // Get value of mapping at index
+    function getValueOfAddressUint256(address key) public view returns(uint256 res) {
+        uint256 slot;
+
+        assembly {
+            slot := mappingAddressUint256.slot
+        }
+
+        bytes32 location = keccak256(abi.encode(key, slot));
+
+        assembly {
+            res := sload(location)
+        }
+    }
+
+    // Get element of nested mapping
+    function getNestedMapping(uint256 x, uint256 y) external view returns (uint256 ret) {
+        uint256 slot;
+        assembly {
+            slot := nestedMapping.slot
+        }
+
+        // We look at the location of the mapping at index x and y (from inside to outside)
+        bytes32 location = keccak256(
+            abi.encode(
+                uint256(y),
+                keccak256(abi.encode(uint256(x), uint256(slot)))
+            )
+        );
+        assembly {
+            ret := sload(location)
+        }
+    }
+
+    // Get element of nested mapping
+    function getNestedMappingAddress(address x, uint256 y) external view returns (uint256 ret) {
+        uint256 slot;
+        assembly {
+            slot := nestedMappingAddress.slot
+        }
+
+        // We look at the location of the mapping at index x and y (from inside to outside)
+        bytes32 location = keccak256(
+            abi.encode(
+                uint256(y),
+                keccak256(abi.encode(x, uint256(slot)))
+            )
+        );
+        assembly {
+            ret := sload(location)
         }
     }
 }
