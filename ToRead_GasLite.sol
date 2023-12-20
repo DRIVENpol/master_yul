@@ -67,11 +67,12 @@ contract GasliteDrop {
             mstore(0x04, caller())
 
             // end of array
-            // shl(5, _addresses.length) -> _addresses.length * 2^5
+            // @note shl(5, _addresses.length) -> _addresses.length * 2^5
             // If addresses.length = 2, then shl(5, 2) = 2 * 2^5 = 64
             // If addresses.length = 3, then shl(5, 3) = 3 * 2^5 = 96
             // _addresses.offset - the offset of the addresses array - where it starts in memory (from right to left)
             // add(_addresses.offset, shl(5, _addresses.length)) -> _addresses.offset + _addresses.length * 2^5
+            // So end is the end of the addresses array
             let end := add(_addresses.offset, shl(5, _addresses.length))
             // diff = _addresses.offset - _tokenIds.offset
             let diff := sub(_addresses.offset, _tokenIds.offset)
