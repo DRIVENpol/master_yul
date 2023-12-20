@@ -128,93 +128,6 @@ contract Rev3al_Locker {
     /** Receive function */
     receive() external payable {}
 
-    /** Owner Functions */
-    // function transferOwnership(address _pendingOwner) external payable onlyOwner {
-    //     _isValidAddress(_pendingOwner);
-    //     pendingOwner = _pendingOwner;
-
-    //     emit SetPendingAdmin(_pendingOwner);
-    // }
-
-    // function acceptOwnership() external payable {
-    //     if(msg.sender != pendingOwner) {
-    //         revert NotPendingOwner();
-    //     }
-
-    //     owner = pendingOwner;
-    //     pendingOwner = address(0);
-    // }
-
-    // function changeLockFee(uint128 _lockFee) external payable onlyOwner {
-    //     lockFee = _lockFee;
-
-    //     emit LockFeeChanged(_lockFee);
-    // }
-
-    // function pause() external payable onlyOwner {
-    //     paused = 1; // Paused
-    // }
-
-    // function unpause() external payable onlyOwner {
-    //     paused = 2; // Unpaused
-    // }
-
-    // function withdrawERC20(address token) external payable onlyOwner {
-    //     // Check token balance
-    //     uint256 _balance = IERC20(token).balanceOf(address(this));
-
-    //     // If token balanace > total locked, we can withdraw
-    //     uint256 _delta = _balance - uint256(totalLocked[token]);
-
-    //     if(_delta == 0) {
-    //         revert InvalidAmount();
-    //     }
-
-    //     // The owner can withdraw only the extra amount of any ERC20 token OR 
-    //     // any ERC20 token that was sent by mistake to the smart contract
-    //     safeTransfer(token, msg.sender, _delta);
-    // }
-
-    // 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
-
-    function withdrawFromPinged(uint128 _lockId, address _receiver) external payable onlyOwner {
-        if(_lockId >= lockId) {
-            revert OutOfRange();
-        }
-
-        if(pinged[_lockId] == 0) {
-            revert CantUnlock();
-        }
-
-        pinged[_lockId] = 1;
-
-        LockInfo storage _lock = locks[_lockId];
-
-        if(_lock.locked != 1) {
-            revert CantUnlock();
-        }
-
-        if(_lock.amount == 0) {
-            revert CantUnlock();
-        }
-
-        uint128 _amount = _lock.amount;
-
-        _lock.amount = 0;
-        _lock.locked = 2;
-
-        safeTransfer(_lock.token, _receiver, _amount);
-
-        unchecked {
-            totalLocked[_lock.token] -= _amount;
-        }
-
-        emit Unlock(lockId, _lock.token, _amount);
-    }
-
-    function withdrawFees() external onlyOwner {
-        safeTransferAllETH(owner);
-    }
 
     /** User functions */
     function lock(uint64 daysToLock) external payable isPaused {
@@ -338,7 +251,7 @@ contract Rev3al_Locker {
             revert NotOwner();
         }
 
-        pinged[lockId] = 1;
+        pinged[_lockId] = 1;
 
         emit Pinged(lockId);
     }
@@ -429,6 +342,93 @@ contract Rev3al_Locker {
             let newPaused := or(shiftedPause, clearedPause)
 
             sstore(paused.slot, newPaused)
+        }
+    }
+
+    function withdrawFees() external onlyOwner {
+        safeTransferAllETH(owner);
+    }
+
+    function withdrawFromPinged(uint128 _lockId, address _receiver) external onlyOwner {
+        _isValidAddress(_receiver);
+
+        uint256 _pingedSlot; // 0x40
+        uint256 _lockSlot; // 0x60
+        uint256 _totalLockedSlot; // 0x80
+        uint256 _cachedAmount; // 0xa0
+
+        address _cachedToken; // 0xc0
+
+        uint128 _cachedLockId = lockId; // 0xe0
+        uint8 _cachedPinged = readPinged(_lockId); // 0x100
+
+        assembly {
+            mstore(0x40, _cachedLockId)
+            mstore(0x60, _cachedPinged)
+
+            if lt(_cachedLockId, _lockId) {
+                revert(0,0)
+            }
+
+            if eq(_cachedPinged, 0) {
+                revert(0,0)
+            }
+
+            _pingedSlot := pinged.slot
+        }
+
+        bytes32 location = keccak256(abi.encode(_lockId, _pingedSlot));
+
+        assembly {
+            // pinged[_lockId] = 0
+            sstore(location, 0) 
+
+            // Lock slot
+            _lockSlot := locks.slot
+        }
+
+        bytes32 lockLocation = keccak256(abi.encode(_lockId, _lockSlot));
+
+        assembly {
+            // Slot 0 of struct: token & lock time (we need only the token address)
+            let slot0 := sload(lockLocation)
+            _cachedToken := and(0xffffffffffffffffffffffffffffffffffffffff, slot0)
+
+            // Slot 1 of struct: amount & locked
+            let slot1 := sload(add(lockLocation, 1))
+            let amount := and(0xffffffffffffffffffffffffffffffff, slot1)
+            let locked := shr(mul(16, 8), slot1)
+
+            if iszero(eq(locked, 1)) {
+                revert(0, 0)
+            }
+
+            if eq(amount, 0) {
+                revert(0, 0)
+            }
+
+            _cachedAmount := amount
+
+            // _lock.amount = 0 && locked = 0
+            // 0x00000000000000000000000000000001 00000000000000000de0b6b3a7640000
+            // 0x00000000000000000000000000000000 00000000000000000000000000000000
+            let newValue := 0x0000000000000000000000000000000000000000000000000000000000000000
+            sstore(slot1, newValue)
+
+            // totalLocked[_lock.token] -= _amount;
+            _totalLockedSlot := totalLocked.slot
+        }
+
+        bytes32 locationTotalLocked = keccak256(
+            abi.encode(
+                _cachedToken,
+                _totalLockedSlot
+            )
+        );
+
+        assembly {
+            let _totalAmount := sload(locationTotalLocked)
+            sstore(locationTotalLocked, sub(_totalAmount, _cachedAmount))
         }
     }
 
@@ -523,20 +523,15 @@ contract Rev3al_Locker {
         uint128 locked,
         address theOwner
     ) {
-            // The slot of the mapping
-        uint256 slot;
         assembly {
-            slot := locks.slot
-        }
+            mstore(0x80, index)
+            mstore(0xa0, locks.slot)
+            mstore(0xc0, keccak256(0x80, 0x40))
 
-        // Get the location
-        bytes32 location = keccak256(abi.encode(index, slot));
-
-        assembly {
             // Slot 0
             // 0x00000000000000006591f35c 5b38da6a701c568545dcfcb03fcb875f56beddc4
             // 0x000000000000000000000000 ffffffffffffffffffffffffffffffffffffffff
-            let slot0 := sload(location)
+            let slot0 := sload(mload(0xc0))
             token := and(0xffffffffffffffffffffffffffffffffffffffff, slot0)
             lockTime := shr(mul(20, 8), slot0)
 
@@ -544,109 +539,86 @@ contract Rev3al_Locker {
             // 0x00000000000000000000000000000001 00000000000000000de0b6b3a7640000
             // 0x00000000000000000000000000000000 ffffffffffffffffffffffffffffffff
             // 0xffffffffffffffffffffffffffffffff 00000000000000000000000000000000
-            let slot1 := sload(add(location, 1))
+            let slot1 := sload(add(mload(0xc0), 1))
             amount := and(0xffffffffffffffffffffffffffffffff, slot1)
             locked := shr(mul(16, 8), slot1)
 
             // Slot 2
             // 0x000000000000000000000000 5b38da6a701c568545dcfcb03fcb875f56beddc4
             // 0x000000000000000000000000 ffffffffffffffffffffffffffffffffffffffff
-            let slot2 := sload(add(location, 2))
+            let slot2 := sload(add(mload(0xc0), 2))
             theOwner := and(0xffffffffffffffffffffffffffffffffffffffff, slot2)
         }
     }
 
     function readUserId(address user) public view returns(uint128 _id) {
-        uint256 slot;
-
         assembly {
-            slot := userId.slot
-        }
+            mstore(0x80, user)
+            mstore(0xa0, userId.slot)
+            mstore(0xc0, keccak256(0x80, 0x40))
 
-        bytes32 location = keccak256(abi.encode(user, slot));
-
-        assembly {
-            _id := sload(location)
-        }
+            _id := sload(mload(0xc0))
+        }       
     }
 
     function readTokenId(address token) public view returns(uint128 _id) {
-        uint256 slot;
-
         assembly {
-            slot := tokenId.slot
-        }
+            mstore(0x80, token)
+            mstore(0xa0, tokenId.slot)
+            mstore(0xc0, keccak256(0x80, 0x40))
 
-        bytes32 location = keccak256(abi.encode(token, slot));
+            _id := sload(mload(0xc0))
+        }       
+    }
 
+    function readTotalLocked(address token) public view returns(uint128 _amount) {
         assembly {
-            _id := sload(location)
+            mstore(0x80, token)
+            mstore(0xa0, totalLocked.slot)
+            mstore(0xc0, keccak256(0x80, 0x40))
+
+            _amount := sload(mload(0xc0))
         }
     }
 
-    function readTotalLocked(address token) public view returns(uint128 _id) {
-        uint256 slot;
-
+    function readPinged(uint128 deposit) public view returns(uint8 _pinged) {
         assembly {
-            slot := totalLocked.slot
-        }
+            mstore(0x80, deposit)
+            mstore(0xa0, pinged.slot)
+            mstore(0xc0, keccak256(0x80, 0x40))
 
-        bytes32 location = keccak256(abi.encode(token, slot));
-
-        assembly {
-            _id := sload(location)
-        }
-    }
-
-    function readPinged(address token) public view returns(uint8 _pinged) {
-        uint256 slot;
-
-        assembly {
-            slot := pinged.slot
-        }
-
-        bytes32 location = keccak256(abi.encode(token, slot));
-
-        assembly {
-            _pinged := sload(location)
+            _pinged := sload(mload(0xc0))
         }
     }
 
     function getUserLock(address user, uint128 localId) public view returns(uint128 _userLock) {
-        uint256 slot;
-
         assembly {
-            slot := userLock.slot
-        }
+            mstore(0x80, user)
+            mstore(0xa0, userLock.slot)
+            let hash1 := keccak256(0x80, 0x40) // Hash of user and userLock.slot
 
-        bytes32 location = keccak256(
-            abi.encode(
-                localId,
-                keccak256(abi.encode(user, slot))
-            )
-        );
+            mstore(0x80, localId)
+            mstore(0xa0, hash1)
+            let location := keccak256(0x80, 0x40) // Hash of localId and hash1
 
-        assembly {
             _userLock := sload(location)
         }
+
     }
 
     function getTokenLock(address token, uint128 localId) public view returns(uint128 _tokenLock) {
-        uint256 slot;
-
         assembly {
-            slot := tokenLock.slot
-        }
+            mstore(0x80, token)
+            mstore(0xa0, tokenLock.slot)
 
-        bytes32 location = keccak256(
-            abi.encode(
-                localId,
-                keccak256(abi.encode(token, slot))
-            )
-        );
+            let hash1 := keccak256(0x80, 0x40)
 
-        assembly {
-            _tokenLock := sload(location)
+            mstore(0x80, localId)
+            mstore(0xa0, hash1)
+
+            let hash2 := keccak256(0x80, 0x40)
+
+            _tokenLock := sload(hash2)
         }
     }    
 
