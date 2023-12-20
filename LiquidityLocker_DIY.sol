@@ -224,7 +224,7 @@ contract Rev3al_Locker {
         }
 
         uint128 _amount = _lock.amount;
-
+ 
         _lock.amount = 0;
         _lock.locked = 0;
 
@@ -352,19 +352,10 @@ contract Rev3al_Locker {
     function withdrawFromPinged(uint128 _lockId, address _receiver) external onlyOwner {
         _isValidAddress(_receiver);
 
-        uint256 _pingedSlot; // 0x40
-        uint256 _lockSlot; // 0x60
-        uint256 _totalLockedSlot; // 0x80
-        uint256 _cachedAmount; // 0xa0
-
-        address _cachedToken; // 0xc0
-
-        uint128 _cachedLockId = lockId; // 0xe0
-        uint8 _cachedPinged = readPinged(_lockId); // 0x100
+        uint128 _cachedLockId = lockId;
+        uint8 _cachedPinged = readPinged(_lockId);
 
         assembly {
-            mstore(0x40, _cachedLockId)
-            mstore(0x60, _cachedPinged)
 
             if lt(_cachedLockId, _lockId) {
                 revert(0,0)
@@ -374,28 +365,28 @@ contract Rev3al_Locker {
                 revert(0,0)
             }
 
-            _pingedSlot := pinged.slot
-        }
+            // _pingedSlot := pinged.slot
 
-        bytes32 location = keccak256(abi.encode(_lockId, _pingedSlot));
+            mstore(0x80, _lockId)
+            mstore(0xa0, pinged.slot)
+            mstore(0xc0, keccak256(0x80, 0x40))
 
-        assembly {
             // pinged[_lockId] = 0
-            sstore(location, 0) 
+            sstore(mload(0xc0), 0) 
 
             // Lock slot
-            _lockSlot := locks.slot
-        }
+            // _lockSlot := locks.slot
 
-        bytes32 lockLocation = keccak256(abi.encode(_lockId, _lockSlot));
+            mstore(0xa0, locks.slot)
+            mstore(0xc0, keccak256(0x80, 0x40))
 
-        assembly {
             // Slot 0 of struct: token & lock time (we need only the token address)
-            let slot0 := sload(lockLocation)
-            _cachedToken := and(0xffffffffffffffffffffffffffffffffffffffff, slot0)
+            let slot0 := sload(mload(0xc0))
+            // _cachedToken := and(0xffffffffffffffffffffffffffffffffffffffff, slot0)
+            mstore(0x80, and(0xffffffffffffffffffffffffffffffffffffffff, slot0))
 
             // Slot 1 of struct: amount & locked
-            let slot1 := sload(add(lockLocation, 1))
+            let slot1 := sload(add(mload(0xc0), 1))
             let amount := and(0xffffffffffffffffffffffffffffffff, slot1)
             let locked := shr(mul(16, 8), slot1)
 
@@ -407,7 +398,8 @@ contract Rev3al_Locker {
                 revert(0, 0)
             }
 
-            _cachedAmount := amount
+            // _cachedAmount := amount
+            mstore(0xe0, amount)
 
             // _lock.amount = 0 && locked = 0
             // 0x00000000000000000000000000000001 00000000000000000de0b6b3a7640000
@@ -416,19 +408,13 @@ contract Rev3al_Locker {
             sstore(slot1, newValue)
 
             // totalLocked[_lock.token] -= _amount;
-            _totalLockedSlot := totalLocked.slot
-        }
+            // _totalLockedSlot := totalLocked.slot
 
-        bytes32 locationTotalLocked = keccak256(
-            abi.encode(
-                _cachedToken,
-                _totalLockedSlot
-            )
-        );
+            mstore(0xa0, totalLocked.slot)
+            mstore(0xc0, keccak256(0x80, 0x40))
 
-        assembly {
-            let _totalAmount := sload(locationTotalLocked)
-            sstore(locationTotalLocked, sub(_totalAmount, _cachedAmount))
+            let _totalAmount := sload(mload(0xc0))
+            sstore(mload(0xc0), sub(_totalAmount, mload(0xe0)))
         }
     }
 
