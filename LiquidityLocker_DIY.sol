@@ -145,19 +145,19 @@ contract Rev3al_Locker {
     //     pendingOwner = address(0);
     // }
 
-    function changeLockFee(uint128 _lockFee) external payable onlyOwner {
-        lockFee = _lockFee;
+    // function changeLockFee(uint128 _lockFee) external payable onlyOwner {
+    //     lockFee = _lockFee;
 
-        emit LockFeeChanged(_lockFee);
-    }
+    //     emit LockFeeChanged(_lockFee);
+    // }
 
-    function pause() external payable onlyOwner {
-        paused = 1; // Paused
-    }
+    // function pause() external payable onlyOwner {
+    //     paused = 1; // Paused
+    // }
 
-    function unpause() external payable onlyOwner {
-        paused = 2; // Unpaused
-    }
+    // function unpause() external payable onlyOwner {
+    //     paused = 2; // Unpaused
+    // }
 
     // function withdrawERC20(address token) external payable onlyOwner {
     //     // Check token balance
@@ -377,6 +377,58 @@ contract Rev3al_Locker {
 
             sstore(pendingOwner.slot, _zero)
             sstore(owner.slot, newValue)
+        }
+    }
+
+    function changeLockFee(uint128 _lockFee) external payable onlyOwner {
+        assembly {
+            let value := sload(lockFee.slot)
+
+            // 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff (max)
+            // 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff <- mask
+
+            let mask := 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff
+            let clearedLockFee := and(value, mask)
+
+            let shiftedLockFee := shl(mul(lockFee.offset, 8), _lockFee)
+
+            let newLockFee := or(shiftedLockFee, clearedLockFee)
+
+            sstore(lockFee.slot, newLockFee)
+        }
+    }
+
+    function pause() external payable onlyOwner {
+        assembly {
+            let value := sload(paused.slot) 
+            // 0x00000000ab8483f64d9c6d1ecf9b849ae677dd3315835cb20000000000000002
+            // 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+
+            let mask := 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+            let clearedPause := and(value, mask)
+
+            let shiftedPause := shl(mul(paused.offset, 8), 1)
+
+            let newPaused := or(shiftedPause, clearedPause)
+
+            sstore(paused.slot, newPaused)
+        }
+    }
+
+    function unpause() external payable onlyOwner {
+        assembly {
+            let value := sload(paused.slot) 
+            // 0x00000000ab8483f64d9c6d1ecf9b849ae677dd3315835cb20000000000000002
+            // 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+
+            let mask := 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+            let clearedPause := and(value, mask)
+
+            let shiftedPause := shl(mul(paused.offset, 8), 2)
+
+            let newPaused := or(shiftedPause, clearedPause)
+
+            sstore(paused.slot, newPaused)
         }
     }
 
