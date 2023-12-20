@@ -88,12 +88,28 @@ contract Rev3al_Locker {
 
     /** Modifiers */
     modifier onlyOwner() {
-        if(msg.sender != owner) revert NotOwner();
+        // if(msg.sender != owner) revert NotOwner();
+        address _owner = readOwner();
+
+        assembly {
+            if iszero(eq(caller(), _owner)) {
+                revert (0,0)
+            }
+        }
+        
         _;
     }
 
     modifier isPaused() {
-        if(paused == 1) revert ContractPaused();
+        // if(paused == 1) revert ContractPaused();
+        uint64 _paused = readPaused();
+
+        assembly {
+            if eq(_paused, 1) {
+                revert(0, 0)
+            }
+        }
+
         _;
     }
 
@@ -101,7 +117,7 @@ contract Rev3al_Locker {
      * @dev We make the constructor payable to reduce the gas fees;
      */
     constructor() payable {
-        isValidAddress(msg.sender);
+        _isValidAddress(msg.sender);
 
         owner = msg.sender;
 
@@ -113,21 +129,21 @@ contract Rev3al_Locker {
     receive() external payable {}
 
     /** Owner Functions */
-    function transferOwnership(address _pendingOwner) external payable onlyOwner {
-        isValidAddress(_pendingOwner);
-        pendingOwner = _pendingOwner;
+    // function transferOwnership(address _pendingOwner) external payable onlyOwner {
+    //     _isValidAddress(_pendingOwner);
+    //     pendingOwner = _pendingOwner;
 
-        emit SetPendingAdmin(_pendingOwner);
-    }
+    //     emit SetPendingAdmin(_pendingOwner);
+    // }
 
-    function acceptOwnership() external payable {
-        if(msg.sender != pendingOwner) {
-            revert NotPendingOwner();
-        }
+    // function acceptOwnership() external payable {
+    //     if(msg.sender != pendingOwner) {
+    //         revert NotPendingOwner();
+    //     }
 
-        owner = pendingOwner;
-        pendingOwner = address(0);
-    }
+    //     owner = pendingOwner;
+    //     pendingOwner = address(0);
+    // }
 
     function changeLockFee(uint128 _lockFee) external payable onlyOwner {
         lockFee = _lockFee;
@@ -158,6 +174,8 @@ contract Rev3al_Locker {
     //     // any ERC20 token that was sent by mistake to the smart contract
     //     safeTransfer(token, msg.sender, _delta);
     // }
+
+    // 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
 
     function withdrawFromPinged(uint128 _lockId, address _receiver) external payable onlyOwner {
         if(_lockId >= lockId) {
@@ -204,7 +222,7 @@ contract Rev3al_Locker {
         //     revert("FeeNotPaid");
         // }
 
-        // isValidAddress(address(token));
+        // _isValidAddress(address(token));
 
         // if(daysToLock < 1) {
         //     revert InvalidLockTime();
@@ -325,47 +343,44 @@ contract Rev3al_Locker {
         emit Pinged(lockId);
     }
 
+    /** Only owner functions */
+    function transferOwnership(address _newOwner) external payable onlyOwner {
+        _isValidAddress(_newOwner);
+
+        assembly {
+            sstore(pendingOwner.slot, _newOwner)
+        }
+    }
+
+    function acceptOwnership() external payable {
+        address _pending = readPendingOwner();
+        address _zero = address(0);
+
+        assembly {
+            if iszero(eq(caller(), _pending)) {
+                revert(0, 0)
+            }
+
+            // Get the value of the owner
+            let value := sload(owner.slot)
+
+            // 0x000000005b38da6a701c568545dcfcb03fcb875f56beddc40000000000000002
+            // 0xffffffff0000000000000000000000000000000000000000ffffffffffffffff
+
+            // We clear the slot
+            let mask := 0xffffffff000000000000000000000000000000000000000fffffffffffffffff
+            let clearedOwner := and(value, mask)
+
+            let newShiftedOwner := shl(mul(owner.offset, 8), _pending)
+
+            let newValue := or(newShiftedOwner, clearedOwner)
+
+            sstore(pendingOwner.slot, _zero)
+            sstore(owner.slot, newValue)
+        }
+    }
+
     /** Public view functions */
-    function getMyLocks(address _owner) public view returns(uint256[] memory lockIds) {
-        uint256 _length = userId[_owner];
-
-        lockIds = new uint256[](_length);
-
-        for(uint128 i = 0; i < _length; i++) {
-            lockIds[i] = userLock[_owner][i];
-        }
-    }
-
-    function getTokenLocks(address _token) public view returns(uint256[] memory lockIds) {
-        uint256 _length = tokenId[_token];
-
-        lockIds = new uint256[](_length);
-
-        for(uint128 i = 0; i < _length; i++) {
-            lockIds[i] = tokenLock[_token][i];
-        }
-    }
-
-    function lockInfo(uint128 _lockId) public view returns(LockInfo memory) {
-        return locks[_lockId];
-    }
-
-    function getOwner() public view returns(address) {
-        return owner;
-    }
-
-    function getPendingOwner() public view returns(address) {
-        return pendingOwner;
-    }
-
-    function fee() public view returns(uint128) {
-        return lockFee;
-    }
-
-    function getLockId() public view returns(uint128) {
-        return lockId;
-    }
-
     function readPaused() public view returns(uint64 _res) {
         assembly {
             // Get the value from the slot
@@ -449,14 +464,14 @@ contract Rev3al_Locker {
         }
     }
 
-function readLockAtIndex(uint128 index) public view returns(
+    function readLockAtIndex(uint128 index) public view returns(
         address token,
         uint64 lockTime,
         uint128 amount,
         uint128 locked,
         address theOwner
-        ) {
-        // The slot of the mapping
+    ) {
+            // The slot of the mapping
         uint256 slot;
         assembly {
             slot := locks.slot
@@ -488,14 +503,107 @@ function readLockAtIndex(uint128 index) public view returns(
             theOwner := and(0xffffffffffffffffffffffffffffffffffffffff, slot2)
         }
     }
-    
+
+    function readUserId(address user) public view returns(uint128 _id) {
+        uint256 slot;
+
+        assembly {
+            slot := userId.slot
+        }
+
+        bytes32 location = keccak256(abi.encode(user, slot));
+
+        assembly {
+            _id := sload(location)
+        }
+    }
+
+    function readTokenId(address token) public view returns(uint128 _id) {
+        uint256 slot;
+
+        assembly {
+            slot := tokenId.slot
+        }
+
+        bytes32 location = keccak256(abi.encode(token, slot));
+
+        assembly {
+            _id := sload(location)
+        }
+    }
+
+    function readTotalLocked(address token) public view returns(uint128 _id) {
+        uint256 slot;
+
+        assembly {
+            slot := totalLocked.slot
+        }
+
+        bytes32 location = keccak256(abi.encode(token, slot));
+
+        assembly {
+            _id := sload(location)
+        }
+    }
+
+    function readPinged(address token) public view returns(uint8 _pinged) {
+        uint256 slot;
+
+        assembly {
+            slot := pinged.slot
+        }
+
+        bytes32 location = keccak256(abi.encode(token, slot));
+
+        assembly {
+            _pinged := sload(location)
+        }
+    }
+
+    function getUserLock(address user, uint128 localId) public view returns(uint128 _userLock) {
+        uint256 slot;
+
+        assembly {
+            slot := userLock.slot
+        }
+
+        bytes32 location = keccak256(
+            abi.encode(
+                localId,
+                keccak256(abi.encode(user, slot))
+            )
+        );
+
+        assembly {
+            _userLock := sload(location)
+        }
+    }
+
+    function getTokenLock(address token, uint128 localId) public view returns(uint128 _tokenLock) {
+        uint256 slot;
+
+        assembly {
+            slot := tokenLock.slot
+        }
+
+        bytes32 location = keccak256(
+            abi.encode(
+                localId,
+                keccak256(abi.encode(token, slot))
+            )
+        );
+
+        assembly {
+            _tokenLock := sload(location)
+        }
+    }    
 
     /** Internal functions */
 
     /**
-     * IMPORTED FROM: https://github.com/Vectorized/solady/blob/main/src/utils/SafeTransferLib.sol
-     * NO ADDITIONAL EDITS HAVE BEEN MADE
-     */
+    * IMPORTED FROM: https://github.com/Vectorized/solady/blob/main/src/utils/SafeTransferLib.sol
+    * NO ADDITIONAL EDITS HAVE BEEN MADE
+    */
     function safeTransferFrom(address token, address from, address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
@@ -520,9 +628,9 @@ function readLockAtIndex(uint128 index) public view returns(
     }
 
     /**
-     * IMPORTED FROM: https://github.com/Vectorized/solady/blob/main/src/utils/SafeTransferLib.sol
-     * NO ADDITIONAL EDITS HAVE BEEN MADE
-     */
+    * IMPORTED FROM: https://github.com/Vectorized/solady/blob/main/src/utils/SafeTransferLib.sol
+    * NO ADDITIONAL EDITS HAVE BEEN MADE
+    */
     function safeTransfer(address token, address to, uint256 amount) internal {
         /// @solidity memory-safe-assembly
         assembly {
@@ -544,9 +652,9 @@ function readLockAtIndex(uint128 index) public view returns(
     }
 
     /**
-     * IMPORTED FROM: https://github.com/Vectorized/solady/blob/main/src/utils/SafeTransferLib.sol
-     * NO ADDITIONAL EDITS HAVE BEEN MADE
-     */
+    * IMPORTED FROM: https://github.com/Vectorized/solady/blob/main/src/utils/SafeTransferLib.sol
+    * NO ADDITIONAL EDITS HAVE BEEN MADE
+    */
     /// @dev Sends all the ETH in the current contract to `to`.
     function safeTransferAllETH(address to) internal {
         /// @solidity memory-safe-assembly
@@ -559,10 +667,20 @@ function readLockAtIndex(uint128 index) public view returns(
         }
     }
 
-    /** Pure functions */
-    function isValidAddress(address wallet) internal pure {
-        if (wallet == address(0) || wallet == address(0xdead)) {
-            revert InvalidAddress();
+    function _isValidAddress(address wallet) internal pure returns(bool _status) {
+        address _zero = address(0);
+        address _dead = address(0xdead);
+
+        _status = true;
+
+        assembly {
+            if eq(wallet, _zero) {
+                _status := false
+            }
+
+            if eq(wallet, _dead) {
+                _status := false
+            }
         }
     }
 }
