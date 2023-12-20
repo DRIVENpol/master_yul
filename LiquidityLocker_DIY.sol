@@ -353,10 +353,10 @@ contract Rev3al_Locker {
     }
 
     function acceptOwnership() external payable {
-        address _pending = readPendingOwner();
         address _zero = address(0);
 
         assembly {
+            let _pending := sload(pendingOwner.slot)
             if iszero(eq(caller(), _pending)) {
                 revert(0, 0)
             }
@@ -368,7 +368,7 @@ contract Rev3al_Locker {
             // 0xffffffff0000000000000000000000000000000000000000ffffffffffffffff
 
             // We clear the slot
-            let mask := 0xffffffff000000000000000000000000000000000000000fffffffffffffffff
+            let mask := 0xffffffff0000000000000000000000000000000000000000ffffffffffffffff
             let clearedOwner := and(value, mask)
 
             let newShiftedOwner := shl(mul(owner.offset, 8), _pending)
@@ -498,7 +498,7 @@ contract Rev3al_Locker {
 
             // Slot 2
             // 0x000000000000000000000000 5b38da6a701c568545dcfcb03fcb875f56beddc4
-            // 0x000000000000000000000000
+            // 0x000000000000000000000000 ffffffffffffffffffffffffffffffffffffffff
             let slot2 := sload(add(location, 2))
             theOwner := and(0xffffffffffffffffffffffffffffffffffffffff, slot2)
         }
