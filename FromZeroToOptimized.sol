@@ -238,6 +238,3 @@ contract OwnershipCompareExtraOptimized {
         }
     }
 }
-// 1.45 + 1.35 + 15 - 8.9 + 0.8 + 0.3 + 1 = 11
-// Sol price: 75
-// 825
