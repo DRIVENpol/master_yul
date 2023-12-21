@@ -2,11 +2,11 @@
 pragma solidity ^0.8.13;
 
 /*
-* @note Liquidity Locker / ERC20 Token Locker Created for Rev3al
+* @note Liquidity Locker / ERC20 Token Locker
 * @author Paul Socarde
 */                                     
 
-contract Rev3al_Locker {
+contract Locker {
     /**
      * 'paused' and 'owner' can be packed in a single slot
      * (uint64 + address = 64 + 160 = 224 bits = 28 bytes) out of 32.
@@ -237,23 +237,74 @@ contract Rev3al_Locker {
         emit Unlock(lockId, _lock.token, _amount);
     }
 
+    // function pingContract(uint128 _lockId) external payable {
+    //     if(_lockId >= lockId) {
+    //         revert OutOfRange();
+    //     }
+
+    //     // We read from storag instead of memory because it's cheaper
+    //     // Read from storage => direct read
+    //     // Read from memory => read from storage + copy to memory
+    //     LockInfo storage _lock = locks[_lockId];
+
+    //     if(_lock.owner != msg.sender) {
+    //         revert NotOwner();
+    //     }
+
+    //     pinged[_lockId] = 1;
+
+    //     emit Pinged(lockId);
+    // }
+
     function pingContract(uint128 _lockId) external payable {
-        if(_lockId >= lockId) {
-            revert OutOfRange();
+        uint256 _cachedLockId = lockId;
+
+        assembly {
+            if gt(_lockId, _cachedLockId) {
+                revert(0, 0)
+            }
+
+            // Get the details of the struct
+            mstore(0x80, _lockId)
+            mstore(0xa0, locks.slot)
+            mstore(0xc0, keccak256(0x80, 0x40))
+
+            // We only care about slot 1 and 2, where 'owner', 'amount' and 'locked' are located
+            let slot1 := sload(add(mload(0xc0), 1))
+            let amount := and(0xffffffffffffffffffffffffffffffff, slot1)
+            let locked := shr(mul(16, 8), slot1)
+
+            // 0x000000000000000000000000 5b38da6a701c568545dcfcb03fcb875f56beddc4
+            // 0x000000000000000000000000 ffffffffffffffffffffffffffffffffffffffff
+            let slot2 := sload(add(mload(0xc0), 2))
+            let theOwner := and(0xffffffffffffffffffffffffffffffffffffffff, slot2)
+
+            if iszero(eq(caller(), theOwner)) {
+                revert(0,0)
+            }
+
+            if eq(amount, 0) {
+                revert(0, 0)
+            }
+
+            if eq(locked, 0) {
+                revert(0, 0)
+            }
+
+            // Read 'pinged' variable
+            mstore(0x80, _lockId)
+            mstore(0xa0, pinged.slot)
+            mstore(0xc0, keccak256(0x80, 0x40))
+
+            let _pinged := sload(mload(0xc0))
+            // 0x0000000000000000000000000000000000000000000000000000000000000001
+
+            if eq(_pinged, 1) {
+                revert(0, 0)
+            }
+
+            sstore(mload(0xc0), 0x1)
         }
-
-        // We read from storag instead of memory because it's cheaper
-        // Read from storage => direct read
-        // Read from memory => read from storage + copy to memory
-        LockInfo storage _lock = locks[_lockId];
-
-        if(_lock.owner != msg.sender) {
-            revert NotOwner();
-        }
-
-        pinged[_lockId] = 1;
-
-        emit Pinged(lockId);
     }
 
     /** Only owner functions */
