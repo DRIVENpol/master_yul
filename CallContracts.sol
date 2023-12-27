@@ -28,6 +28,7 @@ contract CallContracts {
     // External view call
     function externalViewCallWithoutArgs(address _target) external view returns(uint256) {
         assembly {
+            // 0xd46300fd is the selector of getA()
             mstore(0x00, 0xd46300fd) // Store getA() selector into memory
 
             let success := staticcall(gas(), _target, 28, 32, 0x00, 0x20)
@@ -46,8 +47,8 @@ contract CallContracts {
     // Call multiply - with arguments
     function callMultiply(address _target) external view returns(uint256 result) {
         assembly {
-            let mptr := mload(0x40) // 0x40 is the free memory pointer
-            let oldMptr := mptr // Store the old memory pointer
+            let mptr := mload(0x40) // 0x40 is the location of the free memory pointer
+            let oldMptr := mptr // Store the old memory pointer location
 
             mstore(mptr, 0x165c4a16) // Store the selector of multiply into memory | 0x40 to 0x60 = mptr + 0
             mstore(add(mptr, 0x20), 3) // The first argument | 0x60 to 0x80 = mptr + 0x20

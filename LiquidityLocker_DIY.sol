@@ -130,72 +130,131 @@ contract Locker {
 
 
     /** User functions */
-    function lock(address token, uint128 amount, uint64 daysToLock) external payable isPaused nonReentrant {
-        if(msg.value != lockFee) {
-            revert("FeeNotPaid");
+    // function lock(address token, uint128 amount, uint64 daysToLock) external payable isPaused {
+    //     if(msg.value != lockFee) {
+    //         revert("FeeNotPaid");
+    //     }
+
+    //     isValidAddress(address(token));
+
+    //     if(daysToLock < 1) {
+    //         revert InvalidLockTime();
+    //     }
+
+    //     if(daysToLock > 1825) { // 1825 days = 5 years | To avoid overflows
+    //         revert InvalidLockTime();
+    //     }
+
+    //     if(amount == 0) {
+    //         revert InvalidAmount();
+    //     }
+
+    //     // Check balance before
+    //     uint256 _balanceBefore = IERC20(token).balanceOf(address(this));
+
+    //     safeTransferFrom(token, msg.sender, address(this), amount);
+
+    //     // Check balance after
+    //     uint256 _balanceAfter = IERC20(token).balanceOf(address(this));
+
+    //     // Compute the delta to support tokens wiht transfer fees
+    //     uint256 _delta = _balanceAfter - _balanceBefore;
+
+    //     // Check if delta <= type(uint64).max | To avoid overflows
+    //     if(_delta > type(uint128).max) {
+    //         revert InvalidAmount();
+    //     }
+
+    //     // Check if delta > 0 | To avoid zero value locks
+    //     if(_delta == 0) {
+    //         revert InvalidAmount();
+    //     }
+
+    //     // Check if we can compute total tokens locked safely
+    //     if(uint256(totalLocked[address(token)]) + _delta > type(uint128).max) {
+    //         revert InvalidAmount();
+    //     }
+
+    //     LockInfo memory newLock = LockInfo({
+    //         token: address(token),
+    //         lockTime: uint64(block.timestamp + (daysToLock * 1 days)),
+    //         amount: uint128(_delta),
+    //         locked: 1,
+    //         owner: msg.sender
+    //     });
+
+    //     locks[lockId] = newLock;
+    //     userLock[msg.sender][userId[msg.sender]] = lockId;
+    //     tokenLock[address(token)][tokenId[address(token)]] = lockId;
+
+    //     unchecked {
+    //         ++lockId;
+    //         ++userId[msg.sender];
+    //         ++tokenId[address(token)];
+
+    //         totalLocked[address(token)] += uint128(_delta);
+    //     }
+
+    //     emit NewLock(msg.sender, lockId - 1, address(token), uint128(_delta), uint64(block.timestamp + (daysToLock * 1 days)));
+    // }
+
+    function lock(address token, uint128 amount, uint64 daysToLock) external payable onlyOwner {
+        require(_isValidAddress(token), "Invalid Address!");
+
+        assembly {
+            let _lf := and(0xffffffffffffffffffffffffffffffff, shr(mul(lockFee.offset, 8), sload(lockFee.slot)))
+
+            // If msg.value != lockFee, we revert
+            if iszero(eq(callvalue(), _lf)) {
+                revert(0, 0)
+            }
+
+            if lt(daysToLock, 1) {
+                revert(0, 0)
+            }
+
+            if gt(daysToLock, 1825) {
+                revert(0, 0)
+            }
+
+            if eq(amount, 0) {
+                revert(0, 0)
+            }
+
+            mstore(0x00, 0x70a08231)
+            mstore(0x20, address())
+
+            pop(staticcall(gas(), token,  add(0x00, 28), 0x40, 0x40, 0x60))
+
+            let _balanceBefore := mload(0x40)
+
+            mstore(0x60, 0x23b872dd)
+            mstore(0x80, caller())
+            mstore(0xa0, address())
+            mstore(0xc0, amount)
+
+            let sTransferFrom := call(gas(), token, 0, add(0x60, 28), add(0x60, 0x80), 0xe0, 0x100)
+
+            if iszero(sTransferFrom) {
+                revert(0, 0)
+            }
+
+            pop(staticcall(gas(), token,  add(0x00, 28), 0x40, 0x40, 0x60))
+
+            let _balanceAfter := mload(0x40)
+
+            // _balanceAfter should be greater than _balanceBefore
+            if lt(_balanceAfter, _balanceBefore) {
+                revert(0, 0)
+            }
+
+            let delta := sub(_balanceAfter, _balanceBefore)
+
+            // delta should be greater than 0
+            if eq(delta, 0) {
+                revert(0, 0)
+            }
         }
-
-        isValidAddress(address(token));
-
-        if(daysToLock < 1) {
-            revert InvalidLockTime();
-        }
-
-        if(daysToLock > 1825) { // 1825 days = 5 years | To avoid overflows
-            revert InvalidLockTime();
-        }
-
-        if(amount == 0) {
-            revert InvalidAmount();
-        }
-
-        // Check balance before
-        uint256 _balanceBefore = IERC20(token).balanceOf(address(this));
-
-        safeTransferFrom(token, msg.sender, address(this), amount);
-
-        // Check balance after
-        uint256 _balanceAfter = IERC20(token).balanceOf(address(this));
-
-        // Compute the delta to support tokens wiht transfer fees
-        uint256 _delta = _balanceAfter - _balanceBefore;
-
-        // Check if delta <= type(uint64).max | To avoid overflows
-        if(_delta > type(uint128).max) {
-            revert InvalidAmount();
-        }
-
-        // Check if delta > 0 | To avoid zero value locks
-        if(_delta == 0) {
-            revert InvalidAmount();
-        }
-
-        // Check if we can compute total tokens locked safely
-        if(uint256(totalLocked[address(token)]) + _delta > type(uint128).max) {
-            revert InvalidAmount();
-        }
-
-        LockInfo memory newLock = LockInfo({
-            token: address(token),
-            lockTime: uint64(block.timestamp + (daysToLock * 1 days)),
-            amount: uint128(_delta),
-            locked: 1,
-            owner: msg.sender
-        });
-
-        locks[lockId] = newLock;
-        userLock[msg.sender][userId[msg.sender]] = lockId;
-        tokenLock[address(token)][tokenId[address(token)]] = lockId;
-
-        unchecked {
-            ++lockId;
-            ++userId[msg.sender];
-            ++tokenId[address(token)];
-
-            totalLocked[address(token)] += uint128(_delta);
-        }
-
-        emit NewLock(msg.sender, lockId - 1, address(token), uint128(_delta), uint64(block.timestamp + (daysToLock * 1 days)));
     }
 
     function unlock(uint128 _lockId) external payable isPaused {
@@ -234,25 +293,6 @@ contract Locker {
 
         emit Unlock(lockId, _lock.token, _amount);
     }
-
-    // function pingContract(uint128 _lockId) external payable {
-    //     if(_lockId >= lockId) {
-    //         revert OutOfRange();
-    //     }
-
-    //     // We read from storag instead of memory because it's cheaper
-    //     // Read from storage => direct read
-    //     // Read from memory => read from storage + copy to memory
-    //     LockInfo storage _lock = locks[_lockId];
-
-    //     if(_lock.owner != msg.sender) {
-    //         revert NotOwner();
-    //     }
-
-    //     pinged[_lockId] = 1;
-
-    //     emit Pinged(lockId);
-    // }
 
     function pingContract(uint128 _lockId) external payable {
         uint256 _cachedLockId = lockId;
