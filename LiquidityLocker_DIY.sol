@@ -221,41 +221,48 @@ contract Locker {
                 revert(0, 0)
             }
 
-            mstore(0x00, 0x70a08231)
-            mstore(0x20, address())
+            mstore(0x00, hex'70a08231')
+            mstore(0x04, address())
 
-            if iszero(staticcall(gas(), token, add(0x00, 28), 0x40, 0x40, 0x60)) {
+            if iszero(staticcall(gas(), token, 0x00, 0x24, 0x24, 0x44)) {
                 revert(0, 0)
             }
 
-            let _balanceBefore := mload(0x40)
+            let _bBefore := mload(0x24)
 
-            mstore(0x60, 0x23b872dd)
-            mstore(0x80, caller())
-            mstore(0xa0, mload(0x20))
-            mstore(0xc0, amount)
+            mstore(0x44, hex'23b872dd')
+            mstore(0x48, caller())
+            mstore(0x68, mload(0x04))
+            mstore(0x88, amount)
 
-            if iszero(call(gas(), token, 0, add(0x60, 28), add(0x60, 0x80), 0xe0, 0x100)) {
+            if iszero(call(gas(), token, 0, 0x44, 0xa8, 0, 0)) {
                 revert(0, 0)
             }
 
-            if iszero(staticcall(gas(), token, add(0x00, 28), 0x40, 0x40, 0x60)) {
+            if iszero(staticcall(gas(), token, 0x00, 0x24, 0x24, 0x44)) {
                 revert(0, 0)
             }
 
-            let _balanceAfter := mload(0x40)
+            let _bAfter := mload(0x24)
 
             // _balanceAfter should be greater than _balanceBefore
-            if lt(_balanceAfter, _balanceBefore) {
+            if lt(_bAfter, _bBefore) {
                 revert(0, 0)
             }
 
-            let delta := sub(_balanceAfter, _balanceBefore)
+            let delta := sub(_bAfter, _bBefore)
 
             // delta should be greater than 0
             if eq(delta, 0) {
                 revert(0, 0)
             }
+
+            // Get the lock Id (next lock)
+            mstore(0xc8, and(shr(mul(lockId.offset, 8), sload(lockId.slot)), 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000))
+            mstore(0xe8, locks.slot)
+            mstore(0x108, keccak256(0xc8, 0x40))
+
+            // Get the location of the struct (which is empty)
         }
     }
 
