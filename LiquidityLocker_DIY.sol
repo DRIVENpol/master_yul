@@ -232,7 +232,7 @@ contract Locker {
 
             mstore(0x60, 0x23b872dd)
             mstore(0x80, caller())
-            mstore(0xa0, address())
+            mstore(0xa0, mload(0x20))
             mstore(0xc0, amount)
 
             if iszero(call(gas(), token, 0, add(0x60, 28), add(0x60, 0x80), 0xe0, 0x100)) {
