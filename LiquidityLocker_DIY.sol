@@ -224,7 +224,9 @@ contract Locker {
             mstore(0x00, 0x70a08231)
             mstore(0x20, address())
 
-            pop(staticcall(gas(), token,  add(0x00, 28), 0x40, 0x40, 0x60))
+            if iszero(staticcall(gas(), token, add(0x00, 28), 0x40, 0x40, 0x60)) {
+                revert(0, 0)
+            }
 
             let _balanceBefore := mload(0x40)
 
@@ -233,13 +235,13 @@ contract Locker {
             mstore(0xa0, address())
             mstore(0xc0, amount)
 
-            let sTransferFrom := call(gas(), token, 0, add(0x60, 28), add(0x60, 0x80), 0xe0, 0x100)
-
-            if iszero(sTransferFrom) {
+            if iszero(call(gas(), token, 0, add(0x60, 28), add(0x60, 0x80), 0xe0, 0x100)) {
                 revert(0, 0)
             }
 
-            pop(staticcall(gas(), token,  add(0x00, 28), 0x40, 0x40, 0x60))
+            if iszero(staticcall(gas(), token, add(0x00, 28), 0x40, 0x40, 0x60)) {
+                revert(0, 0)
+            }
 
             let _balanceAfter := mload(0x40)
 
