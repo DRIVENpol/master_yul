@@ -21,15 +21,16 @@ contract EventWithIndexedParamsYul {
     // execution cost	    1525 gas
     function emitEvent() external {
         assembly {
+            // 'sig' is the keccak256 hash of the event signature
             // bytes32 sig = kecckak256("SimpleEvent(address,uint256)")
             let sig := 0x03c400b16b9e5104e275ada00677d083d60e9e28bd3a41589081eabe01f1b014
             mstore(0x00, 2)
 
             log2(0x00, 0x20, sig, caller())
             //  |---------|       |------|
-            //       A                B
-            // A - not indexed param
-            // B - indexed param
+            //       A               B
+            // A - not indexed params
+            // B - indexed params
         }
     }
 }
