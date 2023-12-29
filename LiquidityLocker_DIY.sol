@@ -258,11 +258,28 @@ contract Locker {
             }
 
             // Get the lock Id (next lock)
-            mstore(0xc8, and(shr(mul(lockId.offset, 8), sload(lockId.slot)), 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000))
-            mstore(0xe8, locks.slot)
-            mstore(0x108, keccak256(0xc8, 0x40))
+            mstore(0x00, and(shr(mul(lockId.offset, 8), sload(lockId.slot)), 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000))
+            mstore(0x20, locks.slot)
+            mstore(0x40, keccak256(0x00, 0x40))
 
-            // Get the location of the struct (which is empty)
+            // Write the new token to the empty slot
+            let newToken := token
+            sstore(mload(0x40), newToken)
+
+            // Get the location of the struct (which is have only the address)
+            let slot0 := sload(mload(0x40))
+            // 0x00000000000000006591f35c 5b38da6a701c568545dcfcb03fcb875f56beddc4
+            // 0x000000000000000000000000 ffffffffffffffffffffffffffffffffffffffff
+
+            let shiftedEndDate := shl(mul(20, 8), add(timestamp(), mul(daysToLock, 86400)))
+
+            let newValue := or(shiftedEndDate, slot0)
+            sstore(mload(0x40), newValue)
+
+            // Go to the next slot and modify the amount and locked variable
+            // Both 128 bits
+            // 0x00000000000000000000000000000001 00000000000000000de0b6b3a7640000
+            let slot1 := sload(add(mload(0x40), 1))
         }
     }
 
