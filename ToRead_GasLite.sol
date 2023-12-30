@@ -57,6 +57,8 @@ contract GasliteDrop {
             }
             // transferFrom(address from, address to, uint256 tokenId)
             // @note Store into the scratch space the signature of 'transferFrom(address, address, uint256)'
+            // We are using 'hex' instead of '0x' because 0x23b872dd is 0x0000...00023b872dd
+            // While hex"23b872dd" is 0x23b872dd000...000
             mstore(0x00, hex"23b872dd")
             // from address
 
