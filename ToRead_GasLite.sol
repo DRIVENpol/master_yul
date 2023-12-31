@@ -1,77 +1,178 @@
-//SPDX-License-Identifier: MIT
+pragma solidity 0.8.19;
 
-// Arrays to test
-// ["0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2", "0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db", "0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db", 
-// "0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB", "0x17F6AD8Ef982297579C203069C1DbfFE4348c372",
-// "0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2", "0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db", "0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db"
-// ]
-// ["123", "456", "789", "987", "654", "123", "456", "789"]
+/**
+                                                                                                                   
+                                                          bbbbbbbb                                         dddddddd
+                                                          b::::::b                                         d::::::d
+                                                          b::::::b                                         d::::::d
+                                                          b::::::b                                         d::::::d
+                                                           b:::::b                                         d:::::d 
+   ggggggggg   ggggg aaaaaaaaaaaaa      ssssssssss         b:::::bbbbbbbbb      aaaaaaaaaaaaa      ddddddddd:::::d 
+  g:::::::::ggg::::g a::::::::::::a   ss::::::::::s        b::::::::::::::bb    a::::::::::::a   dd::::::::::::::d 
+ g:::::::::::::::::g aaaaaaaaa:::::ass:::::::::::::s       b::::::::::::::::b   aaaaaaaaa:::::a d::::::::::::::::d 
+g::::::ggggg::::::gg          a::::as::::::ssss:::::s      b:::::bbbbb:::::::b           a::::ad:::::::ddddd:::::d 
+g:::::g     g:::::g    aaaaaaa:::::a s:::::s  ssssss       b:::::b    b::::::b    aaaaaaa:::::ad::::::d    d:::::d 
+g:::::g     g:::::g  aa::::::::::::a   s::::::s            b:::::b     b:::::b  aa::::::::::::ad:::::d     d:::::d 
+g:::::g     g:::::g a::::aaaa::::::a      s::::::s         b:::::b     b:::::b a::::aaaa::::::ad:::::d     d:::::d 
+g::::::g    g:::::ga::::a    a:::::assssss   s:::::s       b:::::b     b:::::ba::::a    a:::::ad:::::d     d:::::d 
+g:::::::ggggg:::::ga::::a    a:::::as:::::ssss::::::s      b:::::bbbbbb::::::ba::::a    a:::::ad::::::ddddd::::::dd
+ g::::::::::::::::ga:::::aaaa::::::as::::::::::::::s       b::::::::::::::::b a:::::aaaa::::::a d:::::::::::::::::d
+  gg::::::::::::::g a::::::::::aa:::as:::::::::::ss        b:::::::::::::::b   a::::::::::aa:::a d:::::::::ddd::::d
+    gggggggg::::::g  aaaaaaaaaa  aaaa sssssssssss          bbbbbbbbbbbbbbbb     aaaaaaaaaa  aaaa  ddddddddd   ddddd
+            g:::::g                                                                                                
+gggggg      g:::::g                                                                                                
+g:::::gg   gg:::::g                                                                                                
+ g::::::ggg:::::::g                                                                                                
+  gg:::::::::::::g                                                                                                 
+    ggg::::::ggg                                                                                                   
+       gggggg                                                                                                      
+ */
 
-pragma solidity ^0.8.0;
+/**
+ * @title GasliteDrop
+ * @notice Turbo gas optimized bulk transfers of ERC20, ERC721, and ETH
+ * @author Harrison (@PopPunkOnChain)
+ * @author Gaslite (@GasliteGG)
+ * @author Pop Punk LLC (@PopPunkLLC)
+ */
+contract GasliteDrop {
 
-contract Memory {
-
-    function airdrop(
-        // address token,
-        address[] calldata receivers,
-        uint256 [] calldata amounts
-    ) external view returns(bytes32 _res) {
+    /**
+     * @notice Airdrop ERC721 tokens to a list of addresses
+     * @param _nft The address of the ERC721 contract
+     * @param _addresses The addresses to airdrop to
+     * @param _tokenIds The tokenIds to airdrop
+     */
+    function airdropERC721(
+        address _nft, 
+        address[] calldata _addresses, 
+        uint256[] calldata _tokenIds
+    ) external payable {
         assembly {
-            if iszero(eq(receivers.length, amounts.length)) {
+            // Check that the number of addresses matches the number of tokenIds
+            if iszero(eq(_tokenIds.length, _addresses.length)) {
+                revert(0, 0)
+            }
+            // transferFrom(address from, address to, uint256 tokenId)
+            mstore(0x00, hex"23b872dd")
+            // from address
+            mstore(0x04, caller())
+
+            // end of array
+            let end := add(_addresses.offset, shl(5, _addresses.length))
+            // diff = _addresses.offset - _tokenIds.offset
+            let diff := sub(_addresses.offset, _tokenIds.offset)
+
+            // Loop through the addresses
+            for { let addressOffset := _addresses.offset } 1 {} {
+                // to address
+                mstore(0x24, calldataload(addressOffset))
+                // tokenId
+                mstore(0x44, calldataload(sub(addressOffset, diff)))
+                // transfer the token
+                if iszero(call(gas(), _nft, 0, 0x00, 0x64, 0, 0)){
+                    revert(0, 0)
+                }
+                // increment the address offset
+                addressOffset := add(addressOffset, 0x20)
+                // if addressOffset >= end, break
+                if iszero(lt(addressOffset, end)) { break }
+            }
+        }
+    }
+
+    /**
+     * @notice Airdrop ERC20 tokens to a list of addresses
+     * @param _token The address of the ERC20 contract
+     * @param _addresses The addresses to airdrop to
+     * @param _amounts The amounts to airdrop
+     * @param _totalAmount The total amount to airdrop
+     */
+    function airdropERC20(
+        address _token,
+        address[] calldata _addresses,
+        uint256[] calldata _amounts,
+        uint256 _totalAmount
+    ) external payable {
+        assembly {
+            // Check that the number of addresses matches the number of amounts
+            if iszero(eq(_amounts.length, _addresses.length)) {
                 revert(0, 0)
             }
 
+            // transferFrom(address from, address to, uint256 amount)
             mstore(0x00, hex"23b872dd")
-
+            // from address
             mstore(0x04, caller())
+            // to address (this contract)
+            mstore(0x24, address())
+            // total amount
+            mstore(0x44, _totalAmount)
 
-            // receivers.offset
-            // _res := receivers.offset
-            // 0x0000000000000000000000000000000000000000000000000000000000000064
-            // 0x64
+            // transfer total amount to this contract
+            if iszero(call(gas(), _token, 0, 0x00, 0x64, 0, 0)){
+                revert(0, 0)
+            }
 
-            // shl(5, receivers.length) = receivers.length * 2 ** 5
-            // = receivers.length * 32
+            // transfer(address to, uint256 value)
+            mstore(0x00, hex"a9059cbb")
 
-            // add(receivers.offset, shl(5, receivers.length)) = 
-            // = start slot of receivers + (length * 32 bytes)
-            // = the end slot of receivers array
-            // in our case, 0x64 + (8 * 0x20) = 
-            // = 0x64 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20
-            // = 0x164
+            // end of array
+            let end := add(_addresses.offset, shl(5, _addresses.length))
+            // diff = _addresses.offset - _amounts.offset
+            let diff := sub(_addresses.offset, _amounts.offset)
 
-            let end := add(receivers.offset, shl(5, receivers.length))
+            // Loop through the addresses
+            for { let addressOffset := _addresses.offset } 1 {} {
+                // to address
+                mstore(0x04, calldataload(addressOffset))
+                // amount
+                mstore(0x24, calldataload(sub(addressOffset, diff)))
+                // transfer the tokens
+                if iszero(call(gas(), _token, 0, 0x00, 0x64, 0, 0)){
+                    revert(0, 0)
+                }
+                // increment the address offset
+                addressOffset := add(addressOffset, 0x20)
+                // if addressOffset >= end, break
+                if iszero(lt(addressOffset, end)) { break }
+            }
+        }
+    }
 
-            // Let's check it
-            _res := end
-            // 0x0000000000000000000000000000000000000000000000000000000000000164
-            // Exacly what we computed: 0x64 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20
+    /**
+     * @notice Airdrop ETH to a list of addresses
+     * @param _addresses The addresses to airdrop to
+     * @param _amounts The amounts to airdrop
+     */
+    function airdropETH(
+        address[] calldata _addresses,
+        uint256[] calldata _amounts
+    ) external payable {
+        assembly {
+            // Check that the number of addresses matches the number of amounts
+            if iszero(eq(_amounts.length, _addresses.length)) {
+                revert(0, 0)
+            }
 
-            let diff := sub(receivers.offset, amounts.offset)
-        }    
+            // iterator
+            let i := _addresses.offset
+            // end of array
+            let end := add(i, shl(5, _addresses.length))
+            // diff = _addresses.offset - _amounts.offset
+            let diff := sub(_amounts.offset, _addresses.offset)
+
+            // Loop through the addresses
+            for {} 1 {} {
+                // transfer the ETH
+                if iszero(
+                    call(gas(), calldataload(i), calldataload(add(i, diff)), 0x00, 0x00, 0x00, 0x00)
+                ) { revert(0x00, 0x00) }
+                // increment the iterator
+                i := add(i, 0x20)
+                // if i >= end, break
+                if eq(end, i) { break }
+            }
+        }
     }
 }
-
-// ["0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2", "0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db", "0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db",  "0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB", "0x17F6AD8Ef982297579C203069C1DbfFE4348c372", "0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2", "0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db", "0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db" ]
-// ["123", "456", "789", "987", "654", "123", "456", "789"]
-// 0x67243482 <- function selectore 0x00
-// 0000000000000000000000000000000000000000000000000000000000000040 0x04 <- where the data about the address array starts 0x40
-// 0000000000000000000000000000000000000000000000000000000000000160 0x24 <- where the data about the amounts array starts 0x160
-// 0000000000000000000000000000000000000000000000000000000000000008 0x44 <- the length of the address array
-// 000000000000000000000000ab8483f64d9c6d1ecf9b849ae677dd3315835cb2 0x64 <- address 0
-// 0000000000000000000000004b20993bc481177ec7e8f571cecae8a9e22c02db 0x84 <- address 1
-// 0000000000000000000000004b20993bc481177ec7e8f571cecae8a9e22c02db 0xa4 <- address 2
-// 00000000000000000000000078731d3ca6b7e34ac0f824c42a7cc18a495cabab 0xc4 <- address 3
-// 00000000000000000000000017f6ad8ef982297579c203069c1dbffe4348c372 0xe4 <- address 4
-// 000000000000000000000000ab8483f64d9c6d1ecf9b849ae677dd3315835cb2 0x104 <- address 5
-// 0000000000000000000000004b20993bc481177ec7e8f571cecae8a9e22c02db 0x124 <- address 6
-// 0000000000000000000000004b20993bc481177ec7e8f571cecae8a9e22c02db 0x144 <- address 7
-// 0000000000000000000000000000000000000000000000000000000000000008 0x164 <- the length of the array address
-// 000000000000000000000000000000000000000000000000000000000000007b 0x184 <- amount 0
-// 00000000000000000000000000000000000000000000000000000000000001c8 0x1a4 <- amount 1
-// 0000000000000000000000000000000000000000000000000000000000000315 0x1c4 <- amount 2
-// 00000000000000000000000000000000000000000000000000000000000003db 0x1e4 <- amount 3
-// 000000000000000000000000000000000000000000000000000000000000028e 0x204 <- amount 4
-// 000000000000000000000000000000000000000000000000000000000000007b 0x224 <- amount 5
-// 00000000000000000000000000000000000000000000000000000000000001c8 0x244 <- amount 6
-// 0000000000000000000000000000000000000000000000000000000000000315 0x264 <- amount 7
