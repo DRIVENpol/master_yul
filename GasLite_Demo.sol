@@ -26,7 +26,7 @@ contract Memory {
             mstore(0x04, caller())
 
             // receivers.offset // 0x0000000000000000000000000000000000000000000000000000000000000064
-            _res := amounts.offset // 0x0000000000000000000000000000000000000000000000000000000000000184
+            // _res := amounts.offset // 0x0000000000000000000000000000000000000000000000000000000000000184
 
             // shl(5, receivers.length) = receivers.length * 2 ** 5
             // = receivers.length * 32
@@ -50,6 +50,10 @@ contract Memory {
             // so diff : 100 - 388 = -288
             // diff : 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffee0
             // diff : 0xee0
+
+            _res := sub(add(receivers.offset, 0x20), diff)
+            // 0x184
+            // sub(add(receivers.offset, 0x20), diff) -> 0x1a4
         }    
     }
 }
