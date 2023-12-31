@@ -50,30 +50,15 @@ contract GasliteDrop {
     ) external payable {
         assembly {
             // Check that the number of addresses matches the number of tokenIds
-
-            // @note Check if the length of the arrays are equal
             if iszero(eq(_tokenIds.length, _addresses.length)) {
                 revert(0, 0)
             }
             // transferFrom(address from, address to, uint256 tokenId)
-            // @note Store into the scratch space the signature of 'transferFrom(address, address, uint256)'
-            // We are using 'hex' instead of '0x' because 0x23b872dd is 0x0000...00023b872dd
-            // While hex"23b872dd" is 0x23b872dd000...000
             mstore(0x00, hex"23b872dd")
             // from address
-
-            // @note Store into the scratch space the address of the caller
-            // There should not be any gaps between what we store in memory
-            // So the function selector is stored at 0x00 (4 bytes -> 0x00, 0x01, 0x02, 0x03)
-            // And the caller(), whihc is msg.sender is stored at 0x04 (32 bytes -> 0x04, 0x05, 0x06, 0x07, ... 0x23)
             mstore(0x04, caller())
 
             // end of array
-            // @note shl(5, _addresses.length) -> _addresses.length * 2^5
-            // If addresses.length = 2, then shl(5, 2) = 2 * 2^5 = 64
-            // If addresses.length = 3, then shl(5, 3) = 3 * 2^5 = 96
-            // _addresses.offset - the offset of the addresses array - where it starts in memory (from right to left)
-            // add(_addresses.offset, shl(5, _addresses.length)) -> _addresses.offset + _addresses.length * 2^5
             let end := add(_addresses.offset, shl(5, _addresses.length))
             // diff = _addresses.offset - _tokenIds.offset
             let diff := sub(_addresses.offset, _tokenIds.offset)
