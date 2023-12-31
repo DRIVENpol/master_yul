@@ -21,21 +21,35 @@ contract Memory {
                 revert(0, 0)
             }
 
-            // mstore(0x00, hex"23b872dd")
+            mstore(0x00, hex"23b872dd")
 
-            // mstore(0x04, caller())
+            mstore(0x04, caller())
 
-            // receivers.offset
-            _res := receivers.offset
-            // 0x0000000000000000000000000000000000000000000000000000000000000064
+            // receivers.offset // 0x0000000000000000000000000000000000000000000000000000000000000064
+            _res := amounts.offset // 0x0000000000000000000000000000000000000000000000000000000000000184
+
+            // shl(5, receivers.length) = receivers.length * 2 ** 5
+            // = receivers.length * 32
+
+            // add(receivers.offset, shl(5, receivers.length)) = 
+            // = start slot of receivers + (length * 32 bytes)
+            // = the end slot of receivers array
+            // in our case, 0x64 + (8 * 0x20) = 
+            // = 0x64 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20
+            // = 0x164
 
             let end := add(receivers.offset, shl(5, receivers.length))
 
             // Let's check it
             // _res := end
             // 0x0000000000000000000000000000000000000000000000000000000000000164
+            // Exacly what we computed: 0x64 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20 + 0x20
 
             let diff := sub(receivers.offset, amounts.offset)
+            // _res := diff
+            // so diff : 100 - 388 = -288
+            // diff : 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffee0
+            // diff : 0xee0
         }    
     }
 }
