@@ -1,3 +1,11 @@
+// This Locker : lock function
+// transaction cost	130484 gas 
+// execution cost	113572 gas
+
+// Classic Locker : lock function
+// transaction cost	215686 gas 
+// execution cost	201574 gas
+
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
@@ -278,8 +286,17 @@ contract Locker {
 
             // Go to the next slot and modify the amount and locked variable
             // Both 128 bits
-            // 0x00000000000000000000000000000001 00000000000000000de0b6b3a7640000
+            // 0x00000000000000000000000000000000 00000000000000000000000000000000 <- empty slot
+            // 0x00000000000000000000000000000001 00000000000000000000000000000000 <- we add 'locked' which is 0 or 1
+            // 0x00000000000000000000000000000000 00000000000000000000000000000020 <- we add the amount
+            // The result
+            // 0x00000000000000000000000000000001 00000000000000000000000000000020
             let slot1 := sload(add(mload(0x40), 1))
+            // Locked: 0x0000000000000000000000000000000100000000000000000000000000000000
+            let newValueSlot1 := or(0x0000000000000000000000000000000100000000000000000000000000000000, delta)
+
+            sstore(add(mload(0x40), 1), newValueSlot1)
+            sstore(add(mload(0x40), 2), caller())
         }
     }
 
