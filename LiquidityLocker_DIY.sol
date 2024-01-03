@@ -315,8 +315,9 @@ contract Locker {
             sstore(location, add(sload(location), 1))
             //     tokenLock[address(token)][tokenId[address(token)]] = lockId;
 
-            //     unchecked {
-            //         ++lockId;
+            // unchecked {
+            //    ++lockId;
+            // }
             sstore(lockId.slot, or(shl(mul(lockId.offset, 8), add(shr(mul(lockId.offset, 8), sload(lockId.slot)), 1)), and(sload(lockId.slot), 0xffffffffffffffffffffffffffffffff)))
 
             //         ++userId[msg.sender];
