@@ -206,7 +206,7 @@ contract Locker {
     //     emit NewLock(msg.sender, lockId - 1, address(token), uint128(_delta), uint64(block.timestamp + (daysToLock * 1 days)));
     // }
 
-    function lock(address token, uint128 amount, uint64 daysToLock) external payable onlyOwner {
+    function lock(address token, uint128 amount, uint64 daysToLock) external payable {
         require(_isValidAddress(token), "Invalid Address!");
 
         assembly {
@@ -297,6 +297,33 @@ contract Locker {
 
             sstore(add(mload(0x40), 1), newValueSlot1)
             sstore(add(mload(0x40), 2), caller())
+
+            // userLock[msg.sender][userId[msg.sender]] = lockId;
+            // Read userId of msg.sender
+            mstore(0x00, caller())
+            mstore(0x20, userId.slot)
+            // userId[msg.sender] location
+            let userIdLocation := keccak256(0x00, 0x40)
+
+            mstore(0x20, userLock.slot)
+            let hash1 := keccak256(0x00, 0x40)
+
+            mstore(0x40, userIdLocation)
+            mstore(0x60, hash1)
+            let location := keccak256(0x40, 0x40)
+
+            sstore(location, add(sload(location), 1))
+            //     tokenLock[address(token)][tokenId[address(token)]] = lockId;
+
+            //     unchecked {
+            //         ++lockId;
+            sstore(lockId.slot, or(shl(mul(lockId.offset, 8), add(shr(mul(lockId.offset, 8), sload(lockId.slot)), 1)), and(sload(lockId.slot), 0xffffffffffffffffffffffffffffffff)))
+
+            //         ++userId[msg.sender];
+            //         ++tokenId[address(token)];
+
+            //         totalLocked[address(token)] += uint128(_delta);
+            //     }
         }
     }
 
@@ -616,21 +643,7 @@ contract Locker {
 
     function readLockId() public view returns(uint128 _res) {
         assembly {
-            // Get the value from the slot
-            let lockIdValue := sload(lockId.slot)
-
-            // Get the offset
-            let lockIdOffset := lockId.offset
-
-            // Shift right
-            let shiftedLockId := shr(mul(lockIdOffset, 8), lockIdValue)
-            // 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff
-            // 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000 <- mask
-
-
-            let mask := 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
-
-            _res := and(mask, shiftedLockId)
+            _res := shr(mul(lockId.offset, 8), sload(lockId.slot))
         }
     }
 
