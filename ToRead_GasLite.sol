@@ -67,6 +67,14 @@ contract GasliteDrop {
             // @article shl(5, _addresses.length) is equivalent to _addresses.length * (2 ** 5) = _addresses.length * 32: An address will take 32 bytes (one full slot) 
             // @article So the end of the array is: the start of the array + the number of addresses * 32
             // @article This can be computed as well as let end := sub(amounts.offset, 0x20) but will cost more gas 
+            
+            // sub(amounts.offset, 0x20)
+            // transaction cost	68397 gas 
+            // execution cost	45249 gas
+
+            // add(addresses.offset, shl(5, addresses.length))
+            // transaction cost	68403 gas 
+            // execution cost	45255 gas
             let end := add(_addresses.offset, shl(5, _addresses.length))
             // diff = _addresses.offset - _tokenIds.offset
 
