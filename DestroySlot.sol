@@ -10,7 +10,7 @@ contract SameSlot {
     // 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4
     // 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
     // 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
-    // 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4, 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2,0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db,1,1,1,1
+    // 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4, 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2,0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db,1,2,3,4
 
     // Gas
     // transaction cost	69933 gas (- 22246)
@@ -106,8 +106,31 @@ contract SameSlot {
 
             let _shiftRight := shr(mul(12, 8), _shiftedLeft)
             // 0x0000000000000000000000004b20993bc481177ec7e8f571cecae8a9e22c02db
-            
+
             _res := _shiftRight
+        }
+    }
+
+    function getValues() external view returns(uint256 _val1, uint256 _val2, uint256 _val3, uint256 _val4) {
+        assembly {
+            let _value := sload(slot1.slot)
+            // 0xe677dd3315835cb24b20993bc481177ec7e8f571cecae8a9e22c02db 01 02 03 04
+
+            let _v1Shl := shl(mul(28, 8), _value)
+            // 0x01 02 03 04 00000000000000000000000000000000000000000000000000000000
+            _val1 := shr(mul(31, 8), _v1Shl)
+
+            let _v2Shl := shl(mul(29, 8), _value)
+            // 0x00000000000000000000000000000000000000000000000000000000 00 00 00 00
+            _val2 := shr(mul(31, 8), _v2Shl)
+
+            let _v3Shl := shl(mul(30, 8), _value)
+            // 0x00000000000000000000000000000000000000000000000000000000 00 00 00 00
+            _val3 := shr(mul(31, 8), _v3Shl)
+
+            let _v4Shl := shl(mul(31, 8), _value)
+            // 0x00000000000000000000000000000000000000000000000000000000 00 00 00 00
+            _val4 := shr(mul(31, 8), _v4Shl)
         }
     }
 }
@@ -126,7 +149,7 @@ contract SameSlot2 {
     // 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4
     // 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
     // 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
-    // 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4, 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2,0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db,1,1,1,1
+    // 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4, 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2,0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db,1,2,3,4
 
     // Gas
     // transaction cost	92179 gas 
