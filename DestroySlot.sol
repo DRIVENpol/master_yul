@@ -15,7 +15,7 @@ contract SameSlot {
     // Gas
     // transaction cost	69933 gas (- 22246)
     // execution cost	47205 gas
-    function ThreeAddresses_TwoBool_TwoSlots(
+    function ThreeAddresses_FourUints_TwoSlots(
         address _addr1,
         address _addr2,
         address _addr3,
