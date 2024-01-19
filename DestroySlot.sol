@@ -10,6 +10,7 @@ contract SameSlot {
     // 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4
     // 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
     // 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
+    // 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4, 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2,0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db,1,1,1,1
 
     // Gas
     // transaction cost	69933 gas (- 22246)
@@ -68,6 +69,32 @@ contract SameSlot {
             // Slot 1 -> 0xe677dd3315835cb2 4b20993bc481177ec7e8f571cecae8a9e22c02db 01 02 03 04
         }
     }
+
+    function getAddress1() external view returns(address _res) {
+        assembly {
+            _res := shr(mul(12, 8), sload(slot0.slot))
+        }
+    }
+
+    function getAddress2() external view returns(bytes32 _res) {
+        assembly {
+            let _firstPart := shl(mul(20, 8), sload(slot0.slot))
+            // 0xab8483f64d9c6d1ecf9b849a0000000000000000000000000000000000000000
+
+            let _secondPart := shr(mul(8, 8), sload(slot1.slot))
+            // 0x0000000000000000e677dd3315835cb2 4b20993bc481177ec7e8f571cecae8a9
+
+            let _clearedSecondPart := shr(mul(16, 8), _secondPart)
+            // 0x000000000000000000000000000000000000000000000000 e677dd3315835cb2
+
+            // 0xab8483f64d9c6d1ecf9b849a0000000000000000000000000000000000000000
+            // 0x000000000000000000000000000000000000000000000000e677dd3315835cb2
+            let _firstPartShifted := shr(mul(12, 8), _firstPart)
+            // 0x00000000000000000000000000000000ab8483f64d9c6d1ecf9b849a00000000
+
+            _res := or(_clearedSecondPart, _firstPartShifted)
+        }
+    }
 }
 
 contract SameSlot2 {
@@ -84,6 +111,7 @@ contract SameSlot2 {
     // 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4
     // 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
     // 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
+    // 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4, 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2,0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db,1,1,1,1
 
     // Gas
     // transaction cost	92179 gas 
