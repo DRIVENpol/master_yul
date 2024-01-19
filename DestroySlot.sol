@@ -76,7 +76,7 @@ contract SameSlot {
         }
     }
 
-    function getAddress2() external view returns(bytes32 _res) {
+    function getAddress2() external view returns(address _res) {
         assembly {
             let _firstPart := shl(mul(20, 8), sload(slot0.slot))
             // 0xab8483f64d9c6d1ecf9b849a0000000000000000000000000000000000000000
@@ -87,12 +87,25 @@ contract SameSlot {
             let _clearedSecondPart := shr(mul(16, 8), _secondPart)
             // 0x000000000000000000000000000000000000000000000000 e677dd3315835cb2
 
-            // 0xab8483f64d9c6d1ecf9b849a0000000000000000000000000000000000000000
-            // 0x000000000000000000000000000000000000000000000000e677dd3315835cb2
+            // 0xab8483f64d9c6d1ecf9b849a0000000000000000000000000000000000000000 <- 1st part
+            // 0x000000000000000000000000000000000000000000000000e677dd3315835cb2 <- 2nd part
             let _firstPartShifted := shr(mul(12, 8), _firstPart)
             // 0x00000000000000000000000000000000ab8483f64d9c6d1ecf9b849a00000000
 
             _res := or(_clearedSecondPart, _firstPartShifted)
+        }
+    }
+
+    function getAddress3() external view returns(address _res) {
+        assembly {
+            // 0xe677dd3315835cb2 4b20993bc481177ec7e8f571cecae8a9e22c02db 01 02 03 04 <- Slot 1
+            let _value := sload(slot1.slot)
+
+            let _shiftedLeft := shl(mul(8, 8), _value)
+            // 0x4b20993bc481177ec7e8f571cecae8a9e22c02db010101010000000000000000
+
+            let _shiftRight := shr(mul(12, 8), _shiftedLeft)
+            _res := _shiftRight
         }
     }
 }
