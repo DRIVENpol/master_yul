@@ -12,7 +12,7 @@ contract SameSlot {
     // 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
 
     // Gas
-    // transaction cost	69933 gas 
+    // transaction cost	69933 gas (- 22246)
     // execution cost	47205 gas
     function ThreeAddresses_TwoBool_TwoSlots(
         address _addr1,
@@ -74,12 +74,11 @@ contract SameSlot2 {
     address public addr1;
     address public addr2;
     address public addr3;
+
     uint8 public value1;
     uint8 public value2;
     uint8 public value3;
     uint8 public value4;
-
-    uint256 public 
     
     // Params: 
     // 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4
@@ -87,8 +86,8 @@ contract SameSlot2 {
     // 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
 
     // Gas
-    // transaction cost	69933 gas 
-    // execution cost	47205 gas
+    // transaction cost	92179 gas 
+    // execution cost	69451 gas
     function ThreeAddresses_TwoBool_TwoSlots(
         address _addr1,
         address _addr2,
