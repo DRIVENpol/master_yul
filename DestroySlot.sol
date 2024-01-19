@@ -105,6 +105,8 @@ contract SameSlot {
             // 0x4b20993bc481177ec7e8f571cecae8a9e22c02db010101010000000000000000
 
             let _shiftRight := shr(mul(12, 8), _shiftedLeft)
+            // 0x0000000000000000000000004b20993bc481177ec7e8f571cecae8a9e22c02db
+            
             _res := _shiftRight
         }
     }
