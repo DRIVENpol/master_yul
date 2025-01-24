@@ -138,74 +138,6 @@ contract Locker {
 
 
     /** User functions */
-    // function lock(address token, uint128 amount, uint64 daysToLock) external payable isPaused {
-    //     if(msg.value != lockFee) {
-    //         revert("FeeNotPaid");
-    //     }
-
-    //     isValidAddress(address(token));
-
-    //     if(daysToLock < 1) {
-    //         revert InvalidLockTime();
-    //     }
-
-    //     if(daysToLock > 1825) { // 1825 days = 5 years | To avoid overflows
-    //         revert InvalidLockTime();
-    //     }
-
-    //     if(amount == 0) {
-    //         revert InvalidAmount();
-    //     }
-
-    //     // Check balance before
-    //     uint256 _balanceBefore = IERC20(token).balanceOf(address(this));
-
-    //     safeTransferFrom(token, msg.sender, address(this), amount);
-
-    //     // Check balance after
-    //     uint256 _balanceAfter = IERC20(token).balanceOf(address(this));
-
-    //     // Compute the delta to support tokens wiht transfer fees
-    //     uint256 _delta = _balanceAfter - _balanceBefore;
-
-    //     // Check if delta <= type(uint64).max | To avoid overflows
-    //     if(_delta > type(uint128).max) {
-    //         revert InvalidAmount();
-    //     }
-
-    //     // Check if delta > 0 | To avoid zero value locks
-    //     if(_delta == 0) {
-    //         revert InvalidAmount();
-    //     }
-
-    //     // Check if we can compute total tokens locked safely
-    //     if(uint256(totalLocked[address(token)]) + _delta > type(uint128).max) {
-    //         revert InvalidAmount();
-    //     }
-
-    //     LockInfo memory newLock = LockInfo({
-    //         token: address(token),
-    //         lockTime: uint64(block.timestamp + (daysToLock * 1 days)),
-    //         amount: uint128(_delta),
-    //         locked: 1,
-    //         owner: msg.sender
-    //     });
-
-    //     locks[lockId] = newLock;
-    //     userLock[msg.sender][userId[msg.sender]] = lockId;
-    //     tokenLock[address(token)][tokenId[address(token)]] = lockId;
-
-    //     unchecked {
-    //         ++lockId;
-    //         ++userId[msg.sender];
-    //         ++tokenId[address(token)];
-
-    //         totalLocked[address(token)] += uint128(_delta);
-    //     }
-
-    //     emit NewLock(msg.sender, lockId - 1, address(token), uint128(_delta), uint64(block.timestamp + (daysToLock * 1 days)));
-    // }
-
     function lock(address token, uint128 amount, uint64 daysToLock) external payable {
         require(_isValidAddress(token), "Invalid Address!");
 
@@ -329,41 +261,113 @@ contract Locker {
     }
 
     function unlock(uint128 _lockId) external payable isPaused {
-        if(_lockId >= lockId) {
-            revert OutOfRange();
+        assembly {
+            // 1) Read the current lockId from storage.
+            let currentLockId := shr(mul(lockId.offset, 8), sload(lockId.slot))
+            // if(_lockId >= lockId) revert OutOfRange();
+            if iszero(lt(_lockId, currentLockId)) {
+                // revert(0, 0) => OutOfRange();
+                revert(0, 0)
+            }
+    
+            // 2) Compute where LockInfo is stored: locks[_lockId].
+            //    That structure spans 3 slots: (slot0 => token + lockTime), (slot1 => amount + locked), (slot2 => owner).
+            mstore(0x80, _lockId)
+            mstore(0xa0, locks.slot)
+            // keccak256(_lockId, locks.slot)
+            let structSlot := keccak256(0x80, 0x40)
+    
+            // 3) Load slot0 => [ upper 64 bits = lockTime | lower 160 bits = token ]
+            let slot0 := sload(structSlot)
+            // Extract token address (lowest 160 bits).
+            let tokenAddress := and(slot0, 0xffffffffffffffffffffffffffffffffffffffff)
+            // Extract lockTime (upper 64 bits).
+            let lockTime := shr(160, slot0)
+    
+            // 4) Load slot1 => [ upper 128 bits = locked | lower 128 bits = amount ]
+            let slot1 := sload(add(structSlot, 1))
+            // amount = lower 128 bits
+            let amount := and(slot1, 0xffffffffffffffffffffffffffffffff)
+            // locked = upper 128 bits
+            let locked := shr(128, slot1)
+    
+            // 5) Load slot2 => [ owner in lower 160 bits ]
+            let slot2 := sload(add(structSlot, 2))
+            let lockOwner := and(slot2, 0xffffffffffffffffffffffffffffffffffffffff)
+    
+            // 6) Replicate your Solidity checks:
+            // if(_lock.locked != 1) revert CantUnlock();
+            if iszero(eq(locked, 1)) {
+                revert(0, 0)
+            }
+            // if(_lock.owner != msg.sender) revert CantUnlock();
+            if iszero(eq(lockOwner, caller())) {
+                revert(0, 0)
+            }
+            // if(_lock.lockTime < uint64(block.timestamp)) revert CantUnlock();
+            // (Note this means you CANNOT unlock if lockTime is already in the past.)
+            if lt(lockTime, timestamp()) {
+                revert(0, 0)
+            }
+            // if(_lock.amount == 0) revert CantUnlock();
+            if iszero(amount) {
+                revert(0, 0)
+            }
+    
+            // 7) Zero out slot1 so that `amount=0` and `locked=0`.
+            sstore(add(structSlot, 1), 0)
+    
+            // 8) Transfer the tokens to `msg.sender`.
+            //    We'll manually inline a minimal `safeTransfer` call.
+            //    function signature: transfer(address,uint256) => 0xa9059cbb
+            //    Layout in memory for the call:
+            //       0x00: 4-byte signature, plus 28 zero bytes
+            //       0x04: to (address)
+            //       0x24: amount (uint256)
+            mstore(0x00, 0xa9059cbb000000000000000000000000)
+            mstore(0x04, caller())
+            mstore(0x24, amount)
+            let success := call(gas(), tokenAddress, 0, 0x00, 0x44, 0x00, 0x20)
+            // Check return data to see if it returned true or had no return (standard)
+            if iszero(
+                and(
+                    or(eq(mload(0x00), 1), iszero(returndatasize())),
+                    success
+                )
+            ) {
+                mstore(0x00, 0x90b8ec18) // `TransferFailed()`
+                revert(0x1c, 0x04)
+            }
+    
+            // 9) totalLocked[token] -= amount
+            //    We'll load totalLocked[token], subtract, then store.
+            mstore(0x80, tokenAddress)
+            mstore(0xa0, totalLocked.slot)
+            let totalLockedLocation := keccak256(0x80, 0x40)
+            let oldLockedVal := sload(totalLockedLocation)
+            let newLockedVal := sub(oldLockedVal, amount)
+            sstore(totalLockedLocation, newLockedVal)
+    
+            // 10) Emit the Unlock event:
+            //     event Unlock(uint128 indexed lockId, address indexed token, uint128 amount);
+            //     The topic0 = keccak256("Unlock(uint128,address,uint128)")
+            //     topic1 = lockId
+            //     topic2 = token
+            //     data = [ amount (32 bytes) ]
+            //
+            // keccak256("Unlock(uint128,address,uint128)") = 
+            //   0x54437dfd46f29d42d065b354acb49136c32d66bd0fd557eb1c0f978a4f5e3300
+            mstore(0xe0, amount)
+            log3(
+                0xe0,       // data start
+                0x20,       // data size (just 1 word for `amount`)
+                0x54437dfd46f29d42d065b354acb49136c32d66bd0fd557eb1c0f978a4f5e3300, // event signature
+                _lockId,    // topic1
+                tokenAddress // topic2
+            )
         }
-
-        LockInfo storage _lock = locks[_lockId];
-
-        if(_lock.locked != 1) {
-            revert CantUnlock();
-        }
-
-        if(_lock.owner != msg.sender) {
-            revert CantUnlock();
-        }
-
-        if(_lock.lockTime < uint64(block.timestamp)) {
-            revert CantUnlock();
-        }
-
-        if(_lock.amount == 0) {
-            revert CantUnlock();
-        }
-
-        uint128 _amount = _lock.amount;
- 
-        _lock.amount = 0;
-        _lock.locked = 0;
-
-        safeTransfer(_lock.token, msg.sender, _amount);
-
-        unchecked {
-            totalLocked[_lock.token] -= _amount;
-        }
-
-        emit Unlock(lockId, _lock.token, _amount);
     }
+
 
     function pingContract(uint128 _lockId) external payable {
         uint256 _cachedLockId = lockId;
